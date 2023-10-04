@@ -115,51 +115,36 @@ impl Setup {
     }
     
     fn move_monitor(&self, mon_name: &str, direction: ThrowDirection, tgt_name: &str) {
+        println!("tgt_name: {}, mon_name: {}", tgt_name, mon_name);
         if let Some(monitor_ref) = self.get_monitor_from_id_or_name(mon_name) {
             if let Some(tgt_mon_ref) = self.get_monitor_from_id_or_name(tgt_name) {
                 match direction {
-                    ThrowDirection::Left => Self::move_x_left_of_y(monitor_ref, tgt_mon_ref),
-                    ThrowDirection::Right => Self::move_x_left_of_y(tgt_mon_ref, monitor_ref),
-                    ThrowDirection::Above => Self::move_x_above_y(monitor_ref, tgt_mon_ref),
-                    ThrowDirection::Under => Self::move_x_above_y(tgt_mon_ref, monitor_ref),
+                    ThrowDirection::Left => self.move_x_left_of_y(monitor_ref, tgt_mon_ref),
+                    ThrowDirection::Right => self.move_x_left_of_y(tgt_mon_ref, monitor_ref),
+                    ThrowDirection::Above => self.move_x_above_y(monitor_ref, tgt_mon_ref),
+                    ThrowDirection::Under => self.move_x_above_y(tgt_mon_ref, monitor_ref),
                 }
             }
 
         }
     }
 
-    fn move_x_left_of_y(monitor_ref: &Monitor, tgt_mon_ref: &Monitor) {
-        if tgt_mon_ref.pos.x == 0 {
-            Command::new("hyprctl")
-                .arg("keyword")
-                .arg("monitor")
-                .arg(format!("{},{},0x{},1", monitor_ref.ctlname, monitor_ref.res.display(), tgt_mon_ref.pos.y))
-                .output()
-                .unwrap_or_else(|_| panic!("Moving {} to 0x{} failed", monitor_ref.ctlname, tgt_mon_ref.pos.y));
-            Command::new("hyprctl")
-                .arg("keyword")
-                .arg("monitor")
-                .arg(format!("{},{},{}x{},1", tgt_mon_ref.ctlname, tgt_mon_ref.res.display(), monitor_ref.res.x, tgt_mon_ref.pos.y))
-                .output()
-                .unwrap_or_else(|_| panic!("Moving {} to {}x{} failed", tgt_mon_ref.ctlname, monitor_ref.res.x, tgt_mon_ref.pos.y));
+    fn move_x_left_of_y(&self, monitor_ref: &Monitor, tgt_mon_ref: &Monitor) {
+        if tgt_mon_ref.pos.x > monitor_ref.res.x || tgt_mon_ref.pos.x == 0 {
+            self.change_monitor_pos_x_y(monitor_ref, 0, tgt_mon_ref.pos.y);
+            self.change_monitor_pos_x_y(tgt_mon_ref, monitor_ref.res.x, tgt_mon_ref.pos.y);
         } else {
-            let new_pos_x = tgt_mon_ref.pos.x - tgt_mon_ref.res.x;
-            Command::new("hyprctl")
-                .arg("keyword")
-                .arg("monitor")
-                .arg(format!("{},{},{}x{},1", monitor_ref.ctlname, monitor_ref.res.display(), new_pos_x, tgt_mon_ref.pos.y))
-                .output()
-                .unwrap_or_else(|_| panic!("Moving {} to {}x{} failed", monitor_ref.ctlname, new_pos_x, tgt_mon_ref.pos.y));
+            self.change_monitor_pos_x_y(monitor_ref, tgt_mon_ref.pos.x - monitor_ref.res.x, tgt_mon_ref.pos.y);
         }
     }
 
-    fn move_x_above_y(monitor_ref: &Monitor, tgt_mon_ref: &Monitor) {
-        Command::new("hyprctl")
-            .arg("keyword")
-            .arg("monitor")
-            .arg(format!("{},{},{}x{},1", monitor_ref.ctlname, monitor_ref.res.display(), tgt_mon_ref.pos.x, tgt_mon_ref.res.y))
-            .output()
-            .unwrap_or_else(|_| panic!("Moving {} to {}x{} failed", monitor_ref.ctlname, tgt_mon_ref.pos.x, tgt_mon_ref.res.y));
+    fn move_x_above_y(&self, monitor_ref: &Monitor, tgt_mon_ref: &Monitor) {
+        if tgt_mon_ref.pos.y == 0 {
+            self.change_monitor_pos_x_y(monitor_ref, tgt_mon_ref.pos.x, tgt_mon_ref.res.y); 
+        } else {
+            self.change_monitor_pos_x_y(tgt_mon_ref, tgt_mon_ref.pos.x, 0);
+            self.change_monitor_pos_x_y(monitor_ref, tgt_mon_ref.pos.x, monitor_ref.res.y);
+        }
     }
 
     fn get_monitor_from_name(&self, mon_name: &str) -> Option<&Monitor> {
@@ -225,6 +210,30 @@ impl Setup {
         }
     }
 
+    fn change_monitor_pos_x_y(&self, mon: &Monitor, x: usize, y: usize) {
+            Command::new("hyprctl")
+                .arg("keyword")
+                .arg("monitor")
+                .arg(format!("{},{},{}x{},1", mon.ctlname, mon.res.display(), x, y))
+                .output()
+                .unwrap_or_else(|_| panic!("Moving {} to {}x{} failed", mon.ctlname, x, y));
+    }
+
+    fn change_monitor_pos_x(&self, name_or_id: &str, x: usize) {
+        if let Some(mon) = self.get_monitor_from_id_or_name(name_or_id) {
+           self.change_monitor_pos_x_y(mon, x, mon.pos.y); 
+        } else {
+            println!("Could not find monitor: {}", name_or_id);
+        }
+    }
+
+    fn change_monitor_pos_y(&self, name_or_id: &str, y: usize) {
+        if let Some(mon) = self.get_monitor_from_id_or_name(name_or_id) {
+           self.change_monitor_pos_x_y(mon, mon.pos.x, y); 
+        } else {
+            println!("Could not find monitor: {}", name_or_id);
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -242,6 +251,12 @@ struct Config {
 
     #[arg(short, long)]
     throw: Option<String>,
+
+    #[arg(short)]
+    x: Option<usize>,
+
+    #[arg(short)]
+    y: Option<usize>,
 
     target: Option<String>,
 
@@ -306,7 +321,15 @@ fn main() {
             setup.enable_monitor(&mon_name);
         } else if args.only {
             setup.only_monitor(&mon_name);
+        } else if let Some(x) = args.x {
+            setup.change_monitor_pos_x(&mon_name, x);
+        } else if let Some(y) = args.y {
+            setup.change_monitor_pos_y(&mon_name, y);
         }
 
+    }
+
+    if args.verbose {
+        println!("{:?}", Setup::new());
     }
 }
