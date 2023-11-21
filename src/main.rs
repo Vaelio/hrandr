@@ -98,11 +98,23 @@ struct Setup {
 }
 
 impl Setup {
-    fn new() -> Self {
-        let output = Command::new("hyprctl")
-            .arg("monitors")
-            .output()
-            .expect("Couldn't execute hyprctl");
+    fn new(idx_o: &Option<usize>) -> Self {
+        let output = match idx_o {
+            Some(idx) => {
+                Command::new("hyprctl")
+                    .arg("-i")
+                    .arg(format!("{}", idx))
+                    .arg("monitors")
+                    .output()
+                    .expect("Couldn't execute hyprctl")
+            },
+            None => {
+                Command::new("hyprctl")
+                    .arg("monitors")
+                    .output()
+                    .expect("Couldn't execute hyprctl")
+            },
+        };
 
         let result = String::from_utf8_lossy(&output.stdout).to_string();
 
@@ -262,6 +274,9 @@ struct Config {
 
     #[arg(short, long)]
     verbose: bool,
+
+    #[arg(short, long)]
+    index: Option<usize>
 }
 
 
@@ -288,8 +303,8 @@ impl ThrowDirection {
 }
 
 fn main() {
-    let setup = Setup::new();
     let args = Config::parse();
+    let setup = Setup::new(&args.index);
 
     if args.monitor.is_none() && !args.verbose{
         println!("{:#?}", setup);
@@ -330,6 +345,6 @@ fn main() {
     }
 
     if args.verbose {
-        println!("{:?}", Setup::new());
+        println!("{:?}", Setup::new(&args.index));
     }
 }
