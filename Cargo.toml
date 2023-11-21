@@ -1,6 +1,6 @@
 [package]
 name = "hrandr"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "Small tool to move monitors around for Hyprland"
 license  = "GPL-3.0-only"
