@@ -78,7 +78,7 @@ impl Monitor {
             .take(1)
             .collect::<String>();
 
-        let id = id.parse::<usize>().unwrap();
+        let id = id.parse::<usize>().expect(&format!("Wrong command result: {}\n====> Try to rerun with an index (-i idx) <====\n", rmon));
         
         let res = Resolution::from_str(&rmon.split('\n').skip(1).take(1).collect::<String>());
         let pos = Position::from_str(&rmon.split('\n').skip(1).take(1).collect::<String>());
