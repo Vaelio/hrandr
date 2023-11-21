@@ -95,6 +95,7 @@ impl Monitor {
 #[derive(Debug)]
 struct Setup {
     monitors: Vec<Monitor>,
+    index: Option<usize>,
 }
 
 impl Setup {
@@ -123,7 +124,7 @@ impl Setup {
             .map(Monitor::from_str)
             .collect::<Vec<Monitor>>();
 
-        Setup { monitors: rmons }
+        Setup { monitors: rmons, index: idx_o.clone()}
     }
     
     fn move_monitor(&self, mon_name: &str, direction: ThrowDirection, tgt_name: &str) {
@@ -193,12 +194,27 @@ impl Setup {
 
     fn disable_monitor(&self, name_or_id: &str) {
         if let Some(mon) = self.get_monitor_from_id_or_name(name_or_id) {
-            Command::new("hyprctl")
-                .arg("keyword")
-                .arg("monitor")
-                .arg(format!("{},disable", mon.ctlname))
-                .output()
-                .unwrap_or_else(|_| panic!("Could not disable monitor {}", mon.ctlname));
+            match self.index {
+                Some(idx) => {
+                    Command::new("hyprctl")
+                        .arg("keyword")
+                        .arg("-i")
+                        .arg(format!("{}", idx))
+                        .arg("monitor")
+                        .arg(format!("{},disable", mon.ctlname))
+                        .output()
+                        .unwrap_or_else(|_| panic!("Could not disable monitor {}", mon.ctlname));
+                },
+                None => {
+                    Command::new("hyprctl")
+                        .arg("keyword")
+                        .arg("monitor")
+                        .arg(format!("{},disable", mon.ctlname))
+                        .output()
+                        .unwrap_or_else(|_| panic!("Could not disable monitor {}", mon.ctlname));
+                },
+            };
+            
         } else {
             println!("Could not find monitor: {}", name_or_id);
         }
@@ -206,29 +222,62 @@ impl Setup {
 
 
     fn enable_monitor(&self, name_or_id: &str) {
-        Command::new("hyprctl")
-            .arg("keyword")
-            .arg("monitor")
-            .arg(format!("{},preferred,auto,1", name_or_id))
-            .output()
-            .unwrap_or_else(|_| panic!("Could not enable monitor {}", name_or_id));
+        match self.index {
+            Some(idx) => {
+                Command::new("hyprctl")
+                    .arg("keyword")
+                    .arg("-i")
+                    .arg(format!("{}", idx))
+                    .arg("monitor")
+                    .arg(format!("{},preferred,auto,1", name_or_id))
+                    .output()
+                    .unwrap_or_else(|_| panic!("Could not enable monitor {}", name_or_id));
+            },
+            None => {
+                Command::new("hyprctl")
+                    .arg("keyword")
+                    .arg("monitor")
+                    .arg(format!("{},preferred,auto,1", name_or_id))
+                    .output()
+                    .unwrap_or_else(|_| panic!("Could not enable monitor {}", name_or_id));
+            },
+        }
     }
 
     fn only_monitor(&self, name_or_id: &str) {
         if let Some(mon) = self.get_monitor_from_id_or_name(name_or_id) {
-            let _ = self.monitors.iter().take_while(|x| x.id != mon.id).map(|x| self.disable_monitor(&x.ctlname)).count();
+            for curr_mon in self.monitors.iter() {
+                if curr_mon.ctlname != mon.ctlname {
+                    self.disable_monitor(&curr_mon.ctlname);
+                }
+            }
         } else {
             println!("Could not find monitor: {}", name_or_id);
         }
     }
 
     fn change_monitor_pos_x_y(&self, mon: &Monitor, x: usize, y: usize) {
-            Command::new("hyprctl")
+        match self.index {
+            Some(idx) => {
+                Command::new("hyprctl")
+                .arg("keyword")
+                .arg("-i")
+                .arg(format!("{}", idx))
+                .arg("monitor")
+                .arg(format!("{},{},{}x{},1", mon.ctlname, mon.res.display(), x, y))
+                .output()
+                .unwrap_or_else(|_| panic!("Moving {} to {}x{} failed", mon.ctlname, x, y));
+            },
+            None => {
+                Command::new("hyprctl")
                 .arg("keyword")
                 .arg("monitor")
                 .arg(format!("{},{},{}x{},1", mon.ctlname, mon.res.display(), x, y))
                 .output()
                 .unwrap_or_else(|_| panic!("Moving {} to {}x{} failed", mon.ctlname, x, y));
+            },
+        }
+            
     }
 
     fn change_monitor_pos_x(&self, name_or_id: &str, x: usize) {
